@@ -1,0 +1,5 @@
+django
+djangorestframework
+PyJWT
+datetime
+django-cors-headers
