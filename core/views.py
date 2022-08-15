@@ -1,59 +1,77 @@
-from urllib import response
+from os import access
 from rest_framework import exceptions
-from rest_framework.authentication import get_authorization_header
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import User
 from .serializers import UserSerializer
-from .authentication import create_access_token, create_refresh_token, decode_access_token
+from .authentication import JWTAuthentication, create_access_token, create_refresh_token, decode_refresh_token, JWTAuthentication
 # Create your views here.
+
+
 class RegisterAPIView(APIView):
-	def post(self, request):
-		data = request.data
+    def post(self, request):
+        data = request.data
 
-		serializer = UserSerializer(data=data)
-		serializer.is_valid(raise_exception=True)
-		if data['password'] != data['password_confirm']:
-			raise exceptions.APIException('Passwords do not match!')
-		serializer.save()
+        serializer = UserSerializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        if data['password'] != data['password_confirm']:
+            raise exceptions.APIException('Passwords do not match!')
+        serializer.save()
 
-		return Response(serializer.data)
+        return Response(serializer.data)
+
 
 class LoginAPIView(APIView):
-	def post(self, request):
-		email = request.data['email']
-		password = request.data['password']
+    def post(self, request):
+        email = request.data['email']
+        password = request.data['password']
 
-		user = User.objects.filter(email=email).first()
-		if user is None:
-			raise exceptions.AuthenticationFailed('Invalid credentials')
+        user = User.objects.filter(email=email).first()
+        if user is None:
+            raise exceptions.AuthenticationFailed('Invalid credentials')
 
-		if not user.check_password(password):
-			raise exceptions.AuthenticationFailed('Invalid credentials')
+        if not user.check_password(password):
+            raise exceptions.AuthenticationFailed('Invalid credentials')
 
-		access_token = create_access_token(user.id)
-		refresh_token = create_refresh_token(user.id)
+        access_token = create_access_token(user.id)
+        refresh_token = create_refresh_token(user.id)
 
-		response = Response()
+        response = Response()
 
-		response.set_cookie(key='refresh_token', value=refresh_token, httponly=True)
-		response.data = {
-			'token': access_token,
-		}
-		
-		return response
+        response.set_cookie(key='refresh_token',
+                            value=refresh_token, httponly=True)
+        response.data = {
+            'token': access_token,
+        }
+
+        return response
+
 
 class UserAPIView(APIView):
-	def get(self, request):
-		auth = get_authorization_header(request).split()
-		if auth and len(auth) == 2:
-			token = auth[1].decode('utf-8')
-			id = decode_access_token(token)
-			user = User.objects.get(pk=id)
+    authentication_classes = [JWTAuthentication]
 
-			if user:
-				serializer = UserSerializer(user)
-				return Response(serializer.data)
+    def get(self, request):
+        return Response(UserSerializer(request.user).data)
 
-		raise exceptions.AuthenticationFailed('unauthenticated')
+
+class RefreshTokenAPIView(APIView):
+    def post(self, request):
+        refresh_token = request.COOKIES.get('refresh_token')
+        id = decode_refresh_token(refresh_token)
+
+        access_token = create_access_token(id)
+        return Response({
+            'token': access_token,
+        })
+
+class LogoutAPIView(APIView):
+	def post(self, request):
+		response = Response()
+		response.delete_cookie(key='refresh_token')
+		response.data = {
+			"message": "success"
+		}
+
+		return response
+		
