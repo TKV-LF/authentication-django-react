@@ -132,7 +132,7 @@ class ResetAPIView(APIView):
 		if not reset_password:
 			raise exceptions.APIException('Invalid Link!')
 
-		user = User.objects.objects.filter(email=reset_password.email).first()
+		user = User.objects.filter(email=reset_password.email).first()
 
 		if not user:
 			raise exceptions.APIException('User was not found!')
